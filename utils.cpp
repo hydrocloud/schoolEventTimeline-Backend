@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
+#include <stdlib.h>
 
 #include <list>
 
@@ -12,6 +14,8 @@ static size_t zhixue_pw_xor_key_size;
 
 static const char zhixue_pw_xor_template_plain[] = "0000000000000000";
 static const char zhixue_pw_xor_template_encrypted[] = "5598d8718d0f56edc952d04612e13e16";
+
+static bool is_initialized = false;
 
 static void zhixue_get_xor_key() {
     int i;
@@ -31,7 +35,12 @@ static void zhixue_get_xor_key() {
     }
 }
 
-extern "C" void init() {
+extern "C" void __attribute__((constructor)) init() {
+    if(is_initialized) return;
+    is_initialized = true;
+
+    srand(time(0));
+    
     zhixue_get_xor_key();
 }
 
@@ -54,7 +63,34 @@ extern "C" char * zhixue_pw_encode(const char *src) {
     return ret;
 }
 
+static const char *char_table = "abcdefghijklmnopqrstuvwxyz0123456789";
+
+extern "C" char * get_random_string(int length) {
+    int i;
+    char *ret;
+
+    size_t char_table_length = strlen(char_table);
+
+    if(length <= 0) return NULL;
+
+    ret = new char [length+1];
+
+    for(i=0; i<length; i++) ret[i] = char_table[ rand() % char_table_length ];
+
+    ret[length] = '\0';
+
+    mem_allocations.push_back(ret);
+
+    return ret;
+}
+
+static bool memory_free_lock = false;
+
 extern "C" void free_memory() {
+    if(memory_free_lock) return;
+
+    memory_free_lock = true;
+
     int free_count = 0;
 
     for(auto m : mem_allocations) {
@@ -67,4 +103,6 @@ extern "C" void free_memory() {
     }
 
     mem_allocations.clear();
+
+    memory_free_lock = false;
 }
